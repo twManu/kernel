@@ -80,12 +80,12 @@ static struct device dev = {
 
 static void output(char *kbuf, dma_addr_t handle, size_t size, char *string)
 {
-	unsigned long diff;
-	diff = (unsigned long)kbuf - handle;
-	pr_info("kbuf=%12p, handle=%12p, size = %d\n", kbuf,
-		(unsigned long *)handle, (int)size);
-	pr_info("(kbuf-handle)= %12p, %12lu, PAGE_OFFSET=%12lu, compare=%lu\n",
-		(void *)diff, diff, PAGE_OFFSET, diff - PAGE_OFFSET);
+	unsigned long long diff;
+	diff = (unsigned long long)kbuf - handle;
+	pr_info("kbuf=0x%p, handle=0x%llx, size = %d\n", kbuf,
+		(unsigned long long)handle, (int)size);
+	pr_info("(kbuf-handle)= 0x%llx, PAGE_OFFSET=0x%lx, compare=0x%llx\n",
+		diff, PAGE_OFFSET, diff - PAGE_OFFSET);
 	strcpy(kbuf, string);
 	pr_info("string written was, %s\n", kbuf);
 }
@@ -100,27 +100,37 @@ static int __init my_init(void)
 	pr_info("Loading DMA allocation test module\n");
 	pr_info("\nTesting dma_alloc_coherent()..........\n\n");
 	kbuf = dma_alloc_coherent(NULL, size, &handle, GFP_KERNEL);
-	output(kbuf, handle, size, "This is the dma_alloc_coherent() string");
-	dma_free_coherent(NULL, size, kbuf, handle);
+	if( kbuf ) {
+		output(kbuf, handle, size, "This is the dma_alloc_coherent() string");
+		dma_free_coherent(NULL, size, kbuf, handle);
+	} else pr_info("fail w/ dma_alloc_coherent\n");
 
 	/* dma_map/unmap_single */
 
 	pr_info("\nTesting dma_map_single()................\n\n");
 	kbuf = kmalloc(size, GFP_KERNEL);
-	handle = dma_map_single(&dev, kbuf, size, direction);
-	output(kbuf, handle, size, "This is the dma_map_single() string");
-	dma_unmap_single(&dev, handle, size, direction);
-	kfree(kbuf);
+	if( kbuf ) {
+		handle = dma_map_single(&dev, kbuf, size, direction);
+		if( handle ) {
+			output(kbuf, handle, size, "This is the dma_map_single() string");
+			dma_unmap_single(&dev, handle, size, direction);
+		} else pr_info("fail w/ dma_map_single\n");
+		kfree(kbuf);
+	} else pr_info("fail w/ kmalloc\n");
 
 	/* dma_pool method */
-
+#if	0
 	pr_info("\nTesting dma_pool_alloc()..........\n\n");
 	mypool = dma_pool_create("mypool", NULL, pool_size, pool_align, 0);
-	kbuf = dma_pool_alloc(mypool, GFP_KERNEL, &handle);
-	output(kbuf, handle, size, "This is the dma_pool_alloc() string");
-	dma_pool_free(mypool, kbuf, handle);
-	dma_pool_destroy(mypool);
-
+	if( mypool ) {
+		kbuf = dma_pool_alloc(mypool, GFP_KERNEL, &handle);
+		if( kbuf ) {
+			output(kbuf, handle, size, "This is the dma_pool_alloc() string");
+			dma_pool_free(mypool, kbuf, handle);
+		} else pr_info("fail w/ dma_pool_alloc\n");
+		dma_pool_destroy(mypool);
+	} else pr_info("fail w/ dma_pool_create\n");
+#endif
 	device_unregister(&dev);
 
 	return 0;
